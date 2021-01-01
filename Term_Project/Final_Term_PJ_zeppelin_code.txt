@@ -1,0 +1,92 @@
+import spark.implicits._
+import org.apache.spark.sql.types._
+
+/*
+###### 위도(N), 경도(E) 값은 각 지역별로 한 명의 확진자만 선정하여 값을 지정해주었습니다. ######
+*/
+
+val CoronaSchema = new StructType(Array(
+new StructField("ID", StringType, true),
+new StructField("Age", StringType, true),
+new StructField("Gender", StringType, true),
+new StructField("Date", StringType, true),
+new StructField("Day_of", StringType, true),
+new StructField("Time", StringType, true),
+new StructField("Location", StringType, true),
+new StructField("N", FloatType, true),
+new StructField("E", FloatType, true)
+))
+
+val CoronaDF = spark.read.format("csv").schema(CoronaSchema).load("/sparkdata/test/geo.csv").toDF("ID", "Age", "Gender", "Date", "Day_of", "Time", "Location", "N", "E")
+
+case class Corona(ID:String, Age:String, Gender:String, Date:String, Day_of:String, Time:String, Location:String, N:Double, E:Double)
+
+val CoronaDS = CoronaDF.as[Corona]
+
+CoronaDS.createOrReplaceTempView("Corona")
+
+// 확진자들의 최소, 최대, 평균 연령대는?
+CoronaDS.groupBy("Age").count.agg(min("count"),max("count"),avg("count")).show()
+
+// 확진자들이 제일 많이 돌아다닌 시간 및 날짜 그리고 요일은?
+val all = spark.sql("SELECT CONCAT(SUBSTR(Time,0,2),'시') AS CUTtime, Date, Day_of, count(CONCAT(SUBSTR(Time,0,2),'시')) AS count FROM Corona WHERE (Time NOT LIKE '~%') GROUP BY CUTtime, Date, Day_of ORDER BY count DESC").show(5)
+
+// 각 시간대 별로 제일 많이 돌아다닌 확진자들의 연령대는? 
+val all = spark.sql("SELECT CONCAT(SUBSTR(Age,0,1),'0대') AS CUTage,CONCAT(SUBSTR(Time,0,2),'시') AS CUTtime, count(CONCAT(SUBSTR(Age,0,1),'0대')) AS count FROM Corona WHERE (Time NOT LIKE '~%') GROUP BY CUTage,CUTtime ORDER BY count DESC").show(5)
+
+// 확진자들이 제일 많이 거쳐간 지역은 어디인가?
+spark.udf.register("GetLocation",(L:String)=>
+{
+    val Corona_LocationS= L.split(" ")(0) match {
+        case "충청남도" => "충청남도"
+        case "충남" => "충청남도"
+        case "천안" => "충청남도"
+        case "불당동" => "충청남도"
+        //
+        case "충북" => "충청북도"
+        //
+        case "서울시" => "서울특별시"
+        case "서울특별시" => "서울특별시"
+        case "서울" => "서울특별시"
+        case "세종" => "서울특별시"
+        //       
+        case "경기" => "경기도"
+        case "경기도" => "경기도"
+        case "수원" => "경기도"
+        case "영통구" => "경기도"
+        case "장안구" => "경기도"
+        case "팔달구" => "경기도"
+        case "금촌동" => "경기도"
+        //
+        case "인천" => "인천광역시"
+        case "인천광역시" => "인천광역시"
+        //
+        case "부산" => "부산광역시"
+        //
+        case "대구" => "대구광역시"
+        //
+        case "광주" => "광주광역시"
+        //
+        case _ => "그 외 지역"
+}
+    
+    Corona_LocationS
+})
+
+spark.sql("SELECT GetLocation(Location), count(GetLocation(Location)) AS count FROM Corona WHERE Time IS NOT NULL GROUP BY GetLocation(Location) ORDER BY count DESC").show(5)
+
+// 확진자들이 방문한 장소는 어디 ?
+
+//아산
+val Corona_asan_DS = CoronaDS.filter(CoronaDS("ID").contains("아산 2")).show(10,0)
+//천안
+val Corona_asan_DS = CoronaDS.filter(CoronaDS("ID").contains("천안 1")).show(20,0)
+//인천
+val Corona_asan_DS = CoronaDS.filter(CoronaDS("ID").contains("인천 398")).show(20,0)
+//광주
+val Corona_asan_DS = CoronaDS.filter(CoronaDS("ID").contains("광주 29")).show(10,0)
+//수원
+val Corona_asan_DS = CoronaDS.filter(CoronaDS("ID").contains("수원 19")).show(10,0)
+
+// 확진자들이 방문한 장소를 시각화 한다면?
+%sql select * from Corona
