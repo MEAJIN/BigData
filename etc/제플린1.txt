@@ -1,0 +1,45 @@
+import spark.implicits._
+
+case class Corona(
+ID:String,
+Age:String,
+Gender:String,
+Date:String,
+Day_of:String,
+Time:String,
+Location:String)
+
+val CoronaDS =
+spark.read.option("inferSchema",true).csv("/sparkdata/sfpd/*.csv").toDF("ID","Age","Gender","Date","Day_of","Time","Location").as[Corona]
+
+CoronaDS.printSchema ()
+
+CoronaDS.createTempView("Corona")
+
+############################################################################################################
+
+import spark.implicits._
+import org.apache.spark.sql.types._
+
+val CoronaSchema = new StructType(Array(
+new StructField("ID", StringType, true),
+new StructField("Age", StringType, true),
+new StructField("Gender", StringType, true),
+new StructField("Date", StringType, true),
+new StructField("Day_of", StringType, true),
+new StructField("Time", StringType, true),
+new StructField("Location", StringType, true)
+))
+
+val CoronaDF = spark.read.format("csv").schema(CoronaSchema).load("/sparkdata/sfpd/*.csv").toDF("ID", "Age", "Gender", "Date", "Day_of", "Time", "Location")
+
+case class Corona(ID:String, Age:String, Gender:String, Date:String, Day_of:String, Time:String, Location:String)
+
+val CoronaDS = CoronaDF.as[Corona]
+
+CoronaDS.printSchema ()
+
+CoronaDS.createTempView("Corona")
+
+val ByResion = spark.sql("SELECT * FROM Corona WHERE ID LIKE '%아산%'").show(100,false)
+
