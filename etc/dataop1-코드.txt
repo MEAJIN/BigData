@@ -1,0 +1,159 @@
+<데이터세트 연산 적용- SFPD 예>
+
+import spark.implicits._
+case class Incidents(incidentnum:String, category:String, description:String,
+dayofweek:String, date:String, time:String, pddistrict:String, resolution:String,
+address:String, X:Double, Y:Double, pdid:String)
+val sfpdDS =
+spark.read.option("inferSchema",true).csv("/sparkdata/sfpd/sfpd.csv").toDF("i
+ncidentnum", "category", "description", "dayofweek", "date", "time",
+"pddistrict", "resolution", "address", "X", "Y", "pdid").as[Incidents]
+val districtDS = sfpdDS.filter(sfpdDS("pddistrict").contains("SOUTHERN"))
+districtDS.show()
+districtDS.count()
+
+<데이터세트 연산 적용- SFPD 예>
+
+import spark.implicits._
+
+val dataDS = spark.read.text("/sparkdata/word").as[String]
+dataDS.count()
+dataDS.show()
+val wordsDS = dataDS.flatMap(value => value.split("\\s+"))
+wordsDS.printSchema()
+wordsDS.count()
+wordsDS.show()
+val groupDS = wordsDS.groupBy("value")
+val counts = groupDS.count()
+counts.show()
+
+<SFPD Top 5 주소 – 스칼라>
+
+val incByAddDS = sfpdDS.groupBy("address")
+val numAddDS = incByAddDS.count
+val numAddDesc = numAddDS.sort($"count".desc)
+numAddDesc.show(5)
+numAddDesc.take(5)
+val incByAdd = sfpdDS.groupBy("address").count.sort($"count".desc).show(5)
+
+<SFPD Top 5 주소 – SQL>
+
+sfpdDS.createOrReplaceTempView("sfpd")
+val topByAddressSQL = spark.sql("SELECT address, count(incidentnum) AS
+inccount FROM sfpd GROUP BY address ORDER BY inccount DESC LIMIT 5")
+topByAddressSQL.show()
+
+<SFPD Top 5 주소 – 제플린 차트>
+
+%sql SELECT pddistrict, count(incidentnum) AS inccount FROM sfpd GROUP BY pddistrict ORDER BY
+inccount DESC LIMIT 5
+
+<SFPD Top 5 주소 – JSON 저장>
+topByAddressSQL.write.format("json").save("/sparkdata/sfpd/output")
+
+<SFPD Top 5 주소 – JSON 읽기>
+spark.read.json("/sparkdata/sfpd/output")
+
+<SFPD 사건 Top 5 지구대 - 스칼라>
+val incByDist = sfpdDS.groupBy("pddistrict").count.sort($"count".desc)
+incByDist.show(5)
+
+<SFPD 사건 Top 5 지구대 - SQL>
+val incByDistSQL = spark.sql("SELECT pddistrict, count(incidentnum) AS inccount
+FROM sfpd GROUP BY pddistrict ORDER BY inccount DESC LIMIT 5")
+incByDistSQL.show
+
+
+<SFPD Top 10 사건 해결 – 스칼라>
+val top10Res = sfpdDS.groupBy("resolution").count.sort($"count".desc)
+top10Res.show(10)
+
+<SFPD Top 10 사건 해결 – SQL>
+val top10ResSQL = spark.sql("SELECT resolution, count(incidentnum) AS inccount
+FROM sfpd GROUP BY resolution ORDER BY inccount DESC LIMIT 10")
+top10ResSQL.show
+
+<SFPD Top 10 사건 해결 – 제플린 차트>
+%sql SELECT resolution, count(incidentnum) AS inccount FROM sfpd GROUP BY resoluti
+on ORDER BY inccount DESC LIMIT 10
+
+<SFPD Top 3 범죄유형– 스칼라>
+val top3Cat = sfpdDS.groupBy("category").count.sort($"count".desc).show(3)
+
+<SFPD Top 3 범죄유형- SQL>
+val top3CatSQL=spark.sql("SELECT category, count(incidentnum) AS inccount
+FROM sfpd GROUP BY category ORDER BY inccount DESC LIMIT 3")
+top3CatSQL.show
+
+
+
+
+<온라인 경매 데이터세트 생성 - 코드>
+
+import spark.implicits._
+case class Auctions(aucid:String, bid:Double, bidtime:Double, bidder:String,
+bidrate:Int, openbid:Double, price:Double, itemtype:String, dtl:Int)
+val auctionsDS =
+spark.read.option("inferSchema",true).csv("/sparkdata/auction/auctiondata.
+csv").toDF("aucid", "bid", "bidtime", "bidder", "bidrate", "openbid", "price",
+"itemtype", "dtl").as[Auctions]
+auctionsDS.printSchema()
+auctionsDS.createOrReplaceTempView("auctions")
+
+
+
+<온라인 경매 데이터세트 연산 (1)>
+
+val totalauctions = auctionsDS.select("aucid").distinct.count()
+
+val itemtypes = auctionsDS.select("itemtype").distinct.count()
+
+
+<온라인 경매 데이터세트 연산 (2)>
+
+auctionsDS.groupBy("itemtype").count().show()
+
+auctionsDS.groupBy("aucid").count().show()
+ 
+<온라인 경매 데이터세트 연산 (3)>
+
+auctionsDS.groupBy("aucid").count.agg(min("count"),avg("count"),max("count")).show()
+
+auctionsDS.groupBy("itemtype", "aucid").agg(min("bid"), max("bid"),avg("bid")).show()
+
+auctionsDS.filter(auctionsDS("price")>200).count()
+
+<온라인 경매 데이터세트 연산 (4)>
+val xboxes = spark.sql("SELECT aucid,itemtype,bid,price,openbid FROM
+auctions WHERE itemtype='xbox'")
+xboxes.describe("price").show()
+xboxes.describe("bid").show()
+xboxes.describe("price","bid").show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
